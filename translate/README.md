@@ -47,3 +47,14 @@ Run it in a throwaway X server with its own D-Bus, and drive it with xdotool:
 `Xvfb :77` → `DISPLAY=:77 dbus-run-session -- …` → `flameshot gui -r > out.png`, drag a
 selection, `ctrl+t`, wait, `Return`. Point `XDG_CACHE_HOME` at a temporary directory to
 force a fresh translation.
+
+## ⚠️ Set `useX11LegacyScreenshot=true` on X11 (miku)
+
+Upstream v15 captures through the xdg-desktop-portal Screenshot API even on X11. On
+GNOME that brings up a permission dialog and returns a full-screen capture, not the
+area selector. The apt build (12.x) never did this. The fix is the "Legacy X11 method"
+setting, which goes in `~/.config/flameshot/flameshot.ini` under `[General]`:
+
+    useX11LegacyScreenshot=true
+
+It was set on miku on 2026-10-12. Restart the daemon after you change it.
