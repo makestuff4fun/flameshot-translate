@@ -48,6 +48,7 @@
         <file>img/material/black/circlecount-outline.svg</file>
         <file>img/material/black/filepath.svg</file>
         <file>img/material/black/invert.svg</file>
+        <file>img/material/black/translate.svg</file>
         <file>img/material/black/minus.svg</file>
         <file>img/material/black/plus.svg</file>
         <file>img/material/black/shortcut.svg</file>
@@ -72,6 +73,7 @@
         <file>img/material/white/format_underlined.svg</file>
         <file>img/material/white/graphics.svg</file>
         <file>img/material/white/invert.svg</file>
+        <file>img/material/white/translate.svg</file>
         <file>img/material/white/leftalign.svg</file>
         <file>img/material/white/line.svg</file>
         <file>img/material/white/marker.svg</file>

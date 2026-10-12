@@ -46,6 +46,8 @@ target_sources(flameshot PRIVATE redo/redotool.h redo/redotool.cpp)
 target_sources(flameshot PRIVATE save/savetool.h save/savetool.cpp)
 target_sources(flameshot PRIVATE accept/accepttool.h accept/accepttool.cpp)
 target_sources(flameshot PRIVATE invert/inverttool.h invert/inverttool.cpp)
+target_sources(flameshot PRIVATE translate/translatetool.h translate/translatetool.cpp
+                                 translate/translationlabeltool.h translate/translationlabeltool.cpp)
 target_sources(flameshot PRIVATE selection/selectiontool.h selection/selectiontool.cpp)
 target_sources(
   flameshot

@@ -51,6 +51,10 @@ public:
         TYPE_INVERT = 22,
         TYPE_ACCEPT = 23,
         TYPE_CANCEL = 24,
+        TYPE_TRANSLATE = 25,
+        // An English label painted over Chinese text by TYPE_TRANSLATE. It is
+        // only ever created by the editor, never from a button.
+        TYPE_TRANSLATION_LABEL = 26,
     };
     Q_ENUM(Type);
 
@@ -80,7 +84,9 @@ public:
         // decrease tool size for all tools
         REQ_DECREASE_TOOL_SIZE,
         // Commit the active tool.
-        REQ_COMMIT_CURRENT_TOOL
+        REQ_COMMIT_CURRENT_TOOL,
+        // OCR the selection and overlay English translations of its Chinese.
+        REQ_TRANSLATE
     };
 
     explicit CaptureTool(QObject* parent = nullptr)

@@ -15,6 +15,7 @@
 #include "core/flameshot.h"
 #include "core/qguiappcurrentscreen.h"
 #include "tools/copy/copytool.h"
+#include "tools/translate/translationlabeltool.h"
 #include "utils/abstractlogger.h"
 #include "utils/screengrabber.h"
 #include "utils/screenshotsaver.h"
@@ -31,12 +32,18 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QDateTime>
+#include <QDir>
 #include <QFontMetrics>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMessageBox>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QScreen>
 #include <QShortcut>
+#include <QStandardPaths>
+#include <QTemporaryFile>
 #include <QWindow>
 
 #if !defined(DISABLE_UPDATE_CHECKER)
@@ -303,6 +310,13 @@ CaptureWidget::CaptureWidget(const CaptureRequest& req,
 
 CaptureWidget::~CaptureWidget()
 {
+    // A translation still running must not call back into a dead editor.
+    if (m_translateProcess) {
+        m_translateProcess->disconnect(this);
+        m_translateProcess->kill();
+        m_translateProcess->waitForFinished(1000);
+        OverlayMessage::pop();
+    }
 #if defined(Q_OS_MACOS)
     for (QWidget* widget : qApp->topLevelWidgets()) {
         QString className(widget->metaObject()->className());
@@ -847,6 +861,123 @@ void CaptureWidget::pushObjectsStateToUndoStack()
     m_undoStack.push(new ModificationCommand(
       this, m_captureToolObjects, m_captureToolObjectsBackup));
     m_captureToolObjectsBackup.clear();
+}
+
+// OCR the selection and paint English over its Chinese. The OCR and the
+// translation run in flameshot-translate-helper (see translate/README.md), so
+// the engine can change without rebuilding Flameshot. The helper is given the
+// unannotated pixels and runs in the background; the editor stays usable.
+void CaptureWidget::translate()
+{
+    if (m_translateProcess) {
+        return; // already translating this capture
+    }
+    QString helper = qEnvironmentVariable("FLAMESHOT_TRANSLATE_HELPER");
+    if (helper.isEmpty()) {
+        helper = QStandardPaths::findExecutable("flameshot-translate-helper");
+    }
+    if (helper.isEmpty()) {
+        helper = QStandardPaths::findExecutable(
+          "flameshot-translate-helper",
+          { QDir::homePath() + "/.local/bin" });
+    }
+    if (helper.isEmpty()) {
+        AbstractLogger::error()
+          << tr("Translate: flameshot-translate-helper is not installed");
+        return;
+    }
+
+    const QRect selection = m_selection->isVisible()
+                              ? m_selection->geometry()
+                              : rect();
+    const qreal scale = m_context.origScreenshot.devicePixelRatio();
+    const QRect pixels = extendedRect(selection);
+
+    auto* image = new QTemporaryFile(
+      QDir::tempPath() + "/flameshot-translate-XXXXXX.png", this);
+    if (!image->open() ||
+        !m_context.origScreenshot.copy(pixels).save(image, "PNG")) {
+        AbstractLogger::error() << tr("Translate: could not write the image");
+        delete image;
+        return;
+    }
+    image->close();
+
+    auto* process = new QProcess(this);
+    m_translateProcess = process;
+    OverlayMessage::push(tr("Translating…"));
+    connect(process,
+            &QProcess::finished,
+            this,
+            [this, process, image, selection, scale](int exitCode,
+                                                     QProcess::ExitStatus) {
+                OverlayMessage::pop();
+                const QByteArray out = process->readAllStandardOutput();
+                const QByteArray err = process->readAllStandardError();
+                process->deleteLater();
+                image->deleteLater();
+                const QJsonObject result =
+                  QJsonDocument::fromJson(out).object();
+                if (exitCode != 0 || result.contains("error")) {
+                    QString why = result.value("error").toString();
+                    if (why.isEmpty()) {
+                        why = QString::fromUtf8(err).trimmed().right(300);
+                    }
+                    AbstractLogger::error() << tr("Translate failed: ") + why;
+                    return;
+                }
+                addTranslations(out, selection, scale);
+            });
+    connect(process,
+            &QProcess::errorOccurred,
+            this,
+            [process, image](QProcess::ProcessError e) {
+                if (e != QProcess::FailedToStart) {
+                    return; // finished() reports the rest
+                }
+                OverlayMessage::pop();
+                AbstractLogger::error()
+                  << tr("Translate: could not start the helper");
+                process->deleteLater();
+                image->deleteLater();
+            });
+    process->start(helper, { image->fileName() });
+}
+
+// Add every translated label as its own object, in a single undo step.
+void CaptureWidget::addTranslations(const QByteArray& json,
+                                    const QRect& selection,
+                                    qreal scale)
+{
+    const QJsonArray items =
+      QJsonDocument::fromJson(json).object().value("items").toArray();
+    if (items.isEmpty()) {
+        AbstractLogger::info() << tr("Translate: no Chinese text found");
+        return;
+    }
+    m_captureToolObjectsBackup = m_captureToolObjects;
+    for (const auto& value : items) {
+        const QJsonObject item = value.toObject();
+        const QJsonArray box = item.value("box").toArray();
+        if (box.size() != 4) {
+            continue;
+        }
+        // The helper works in image pixels; the editor in logical pixels.
+        const QRect rect(selection.left() + qRound(box[0].toDouble() / scale),
+                         selection.top() + qRound(box[1].toDouble() / scale),
+                         qRound(box[2].toDouble() / scale),
+                         qRound(box[3].toDouble() / scale));
+        m_captureToolObjects.append(
+          new TranslationLabelTool(rect,
+                                   item.value("src").toString(),
+                                   item.value("text").toString(),
+                                   QColor(item.value("bg").toString()),
+                                   QColor(item.value("fg").toString()),
+                                   this));
+    }
+    pushObjectsStateToUndoStack();
+    drawToolsData();
+    updateLayersPanel();
 }
 
 int CaptureWidget::selectToolItemAtPos(const QPoint& pos)
@@ -1500,6 +1631,9 @@ void CaptureWidget::handleToolSignal(CaptureTool::Request r)
             break;
         case CaptureTool::REQ_DECREASE_TOOL_SIZE:
             setToolSize(m_context.toolSize - 1);
+            break;
+        case CaptureTool::REQ_TRANSLATE:
+            translate();
             break;
         case CaptureTool::REQ_COMMIT_CURRENT_TOOL: {
             const bool editingExistingTool =

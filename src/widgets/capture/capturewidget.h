@@ -22,6 +22,7 @@
 
 #include <QMessageBox>
 #include <QPointer>
+#include <QProcess>
 #include <QTimer>
 #include <QUndoStack>
 #include <QWidget>
@@ -114,6 +115,10 @@ protected:
 
 private:
     void pushObjectsStateToUndoStack();
+    void translate();
+    void addTranslations(const QByteArray& json,
+                         const QRect& selection,
+                         qreal scale);
     void releaseActiveTool();
     void uncheckActiveTool();
     int selectToolItemAtPos(const QPoint& pos);
@@ -179,6 +184,7 @@ private:
     bool m_newSelection;
     bool m_movingSelection;
     bool m_captureDone;
+    QPointer<QProcess> m_translateProcess;
     bool m_previewEnabled;
     bool m_adjustmentButtonPressed;
     bool m_configError;

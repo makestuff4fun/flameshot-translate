@@ -26,6 +26,7 @@
 #include "tools/sizedecrease/sizedecreasetool.h"
 #include "tools/sizeincrease/sizeincreasetool.h"
 #include "tools/text/texttool.h"
+#include "tools/translate/translatetool.h"
 #include "tools/undo/undotool.h"
 
 ToolFactory::ToolFactory(QObject* parent)
@@ -66,6 +67,7 @@ CaptureTool* ToolFactory::CreateTool(CaptureTool::Type t, QObject* parent)
         if_TYPE_return_TOOL(TYPE_SIZEDECREASE, SizeDecreaseTool);
         if_TYPE_return_TOOL(TYPE_INVERT, InvertTool);
         if_TYPE_return_TOOL(TYPE_ACCEPT, AcceptTool);
+        if_TYPE_return_TOOL(TYPE_TRANSLATE, TranslateTool);
         default:
             return nullptr;
     }
