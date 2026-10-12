@@ -29,13 +29,17 @@ without rebuilding. Set `FLAMESHOT_TRANSLATE_HELPER` to use another helper, or
 ## Install (miku)
 
 ```bash
-translate/install.sh                          # venv + ~/.local/bin/flameshot-translate-helper
+translate/install.sh                          # venv + helper copy in ~/.local/share, launcher in ~/.local/bin
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX=$HOME/.local/opt/flameshot-translate
 cmake --build build -j && cmake --install build
 ln -sfn ~/.local/opt/flameshot-translate/bin/flameshot ~/.local/bin/flameshot
 pkill -x flameshot; setsid -f flameshot       # restart the tray daemon
 ```
+
+**Nothing runs from this checkout.** The binary runs from `~/.local/opt/flameshot-translate`,
+the helper from `~/.local/share/flameshot-translate`. Re-run the install steps to
+ship a change; editing the repo alone changes nothing that is live.
 
 `~/.local/bin` comes before `/usr/bin` on PATH, so the autostart entry and the
 `Super+Shift+S` shortcut (both run plain `flameshot`) pick up this build. **To go back to
