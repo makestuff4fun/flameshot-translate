@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Per-user setup for Flameshot's Translate tool (Ctrl+T in the editor):
+#   1. a Python venv with RapidOCR (local OCR) in ~/.local/share/flameshot-translate/venv
+#   2. a settings file ~/.config/flameshot-translate/.env (mode 600), from env.example
+#   3. asks for the DeepSeek API key if the file has none and we are on a terminal
+# Safe to re-run: it upgrades the venv and never overwrites an existing key.
+# Set PIP_INDEX_URL to use a PyPI mirror.
+set -euo pipefail
+
+# env.example is next to this script in the checkout, or in /usr/share when packaged.
+here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+example=""
+for f in "$here/env.example" /usr/share/flameshot-translate/env.example; do
+    [ -f "$f" ] && { example="$f"; break; }
+done
+[ -n "$example" ] || { echo "env.example not found" >&2; exit 1; }
+
+data="${XDG_DATA_HOME:-$HOME/.local/share}/flameshot-translate"
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/flameshot-translate"
+venv="$data/venv"
+
+python3 -c 'import venv, ensurepip' 2>/dev/null ||
+    { echo "Python venv support is missing: sudo apt install python3-venv" >&2; exit 1; }
+echo "Installing OCR (RapidOCR + onnxruntime) into $venv ..."
+[ -x "$venv/bin/python" ] || python3 -m venv "$venv"
+"$venv/bin/pip" install -q --disable-pip-version-check -U rapidocr onnxruntime pillow numpy
+
+mkdir -p "$conf"
+if [ ! -e "$conf/.env" ]; then
+    install -m 600 "$example" "$conf/.env"
+    echo "Created $conf/.env"
+fi
+
+if ! grep -qE '^FLAMESHOT_TRANSLATE_API_KEY=.+' "$conf/.env"; then
+    if [ -t 0 ]; then
+        read -rsp "DeepSeek API key (https://platform.deepseek.com/api_keys), Enter to skip: " key
+        echo
+        if [ -n "$key" ]; then
+            tmp="$(mktemp "$conf/.env.XXXXXX")"
+            grep -vE '^FLAMESHOT_TRANSLATE_API_KEY=' "$conf/.env" > "$tmp" || true
+            printf 'FLAMESHOT_TRANSLATE_API_KEY=%s\n' "$key" >> "$tmp"
+            chmod 600 "$tmp" && mv "$tmp" "$conf/.env"
+            echo "Key saved."
+        fi
+    fi
+    grep -qE '^FLAMESHOT_TRANSLATE_API_KEY=.+' "$conf/.env" ||
+        echo "No API key yet: set FLAMESHOT_TRANSLATE_API_KEY in $conf/.env"
+fi
+echo "Done. In Flameshot, select an area and press Ctrl+T (or the 文A button)."

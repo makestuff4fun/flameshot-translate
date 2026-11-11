@@ -28,7 +28,7 @@ without rebuilding. Set `FLAMESHOT_TRANSLATE_HELPER` to use another helper.
 
 ## Settings: `~/.config/flameshot-translate/.env`
 
-`install.sh` creates it from [`env.example`](env.example) (mode 600) if it is missing;
+`flameshot-translate-setup` creates it from [`env.example`](env.example) (mode 600) if it is missing;
 it never overwrites an existing one. It lives outside the checkout, so the API key
 cannot be committed. A variable already set in the environment wins over the file.
 
@@ -43,10 +43,23 @@ cannot be committed. A variable already set in the environment wins over the fil
 The helper reads the file on every run, so a change takes effect on the next Translate
 with no reinstall or daemon restart.
 
-## Install (miku)
+## Install
+
+**From the release `.deb`** (what other people use):
+`sudo apt install ./flameshot_*.deb`, then `flameshot-translate-setup` once per user. That
+command creates the OCR venv in `~/.local/share/flameshot-translate/venv` and the `.env`, and
+asks for the API key. `/usr/bin/flameshot-translate-helper` runs
+`/usr/share/flameshot-translate/flameshot-translate-helper.py` in that venv.
+
+**Building a release:** `translate/make-deb.sh [rev]` writes
+`dist/flameshot_<upstream>+translate<rev>_amd64.deb`. It links against the host's Qt 6, so
+build on the oldest Ubuntu you want to support (24.04 for the first release). Upload it with
+`gh release create v<upstream>-translate<rev> dist/*.deb`.
+
+**Developer install from this checkout (miku):**
 
 ```bash
-translate/install.sh                          # venv + helper copy in ~/.local/share, launcher in ~/.local/bin, .env in ~/.config
+translate/install.sh                          # setup + helper copy in ~/.local/share, launcher in ~/.local/bin
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX=$HOME/.local/opt/flameshot-translate
 cmake --build build -j && cmake --install build

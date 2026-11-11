@@ -1,3 +1,32 @@
+> ## 文A Flameshot Translate (fork)
+>
+> This is [Flameshot](https://github.com/flameshot-org/flameshot) v15.0.0 with one addition:
+> a **Translate** button (`Ctrl+T`) in the editor. It reads the Simplified Chinese in your
+> selection and paints the English over each label in that label's own colours. Each
+> translated label is a normal annotation, so you can move it, resize it, delete it or undo it,
+> and Copy and Save include it.
+>
+> ![Selection with Chinese UI labels, and the same selection after Ctrl+T with English labels in matching colours](translate/demo.png)
+>
+> OCR runs **on your machine** ([RapidOCR](https://github.com/RapidAI/RapidOCR)). Only the
+> recognised text, never the image, is sent for translation: by default to the
+> [DeepSeek API](https://platform.deepseek.com) (`deepseek-flash`), or to any
+> OpenAI-compatible endpoint. A typical selection takes about 2 seconds, and translations are
+> cached.
+>
+> **Install (Ubuntu 24.04+ / Debian, amd64):** download the `.deb` from
+> [Releases](https://github.com/makestuff4fun/flameshot-translate/releases), then
+>
+> ```bash
+> sudo apt install ./flameshot_*+translate*_amd64.deb   # replaces the distro's flameshot
+> flameshot-translate-setup                           # once per user: OCR + your DeepSeek API key
+> pkill -x flameshot; flameshot &                     # restart the tray app
+> ```
+>
+> Settings live in `~/.config/flameshot-translate/.env`. Details, building from source and
+> how it works: [translate/README.md](translate/README.md). This fork is not affiliated with
+> the Flameshot project. Everything below is upstream's README.
+
 <div align="center">
   <p>
     <h1>
