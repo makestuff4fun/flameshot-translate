@@ -14,24 +14,58 @@ paint the English over the Chinese in the label's own colours. On failure it
 prints {"error": "..."} and exits non-zero.
 
 OCR runs locally (RapidOCR = PaddleOCR models on onnxruntime). Only the
-recognised strings, never the image, go to Claude for translation, through
-the `claude` CLI and its existing login. Translations are cached, so a label
-seen before costs nothing.
+recognised strings, never the image, go to an OpenAI-compatible chat API for
+translation (DeepSeek by default). Translations are cached, so a label seen
+before costs nothing.
+
+Settings come from ~/.config/flameshot-translate/.env (see env.example next to
+this script). A variable already set in the environment wins over the file.
 """
 
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 CJK = re.compile(r"[㐀-䶿一-鿿豈-﫿]")
 MIN_SCORE = 0.5
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / \
     "flameshot-translate" / "translations.json"
-MODEL = os.environ.get("FLAMESHOT_TRANSLATE_MODEL", "haiku")
+ENV_FILE = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / \
+    "flameshot-translate" / ".env"
+
+
+def load_env(path):
+    """Minimal .env reader: KEY=VALUE lines, # comments, optional quotes and
+    `export`. Values never override variables already in the environment."""
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key = key.removeprefix("export ").strip()
+        val = val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "'\"":
+            val = val[1:-1]
+        os.environ.setdefault(key, val)
+
+
+load_env(ENV_FILE)
+API_BASE = os.environ.get("FLAMESHOT_TRANSLATE_API_BASE",
+                          "https://api.deepseek.com/v1").rstrip("/")
+API_KEY = os.environ.get("FLAMESHOT_TRANSLATE_API_KEY", "")
+MODEL = os.environ.get("FLAMESHOT_TRANSLATE_MODEL", "deepseek-flash")
+# Short UI strings need no reasoning: "low" took ~1 s vs the default "high".
+# Set it empty to omit the parameter for APIs that reject it.
+EFFORT = os.environ.get("FLAMESHOT_TRANSLATE_EFFORT", "low")
+TIMEOUT = float(os.environ.get("FLAMESHOT_TRANSLATE_TIMEOUT", "60"))
 
 SYSTEM_PROMPT = """\
 You translate Simplified Chinese UI strings (buttons, menus, tabs, labels and \
@@ -118,22 +152,33 @@ def save_cache(cache):
         pass
 
 
-def claude_translate(strings):
-    exe = shutil.which("claude") or str(Path.home() / ".local/bin/claude")
-    if not Path(exe).exists():
-        fail("claude CLI not found")
-    cmd = [exe, "-p", "--model", MODEL, "--tools", "",
-           "--no-session-persistence", "--disable-slash-commands",
-           "--strict-mcp-config", "--system-prompt", SYSTEM_PROMPT]
+def api_translate(strings):
+    if not API_KEY:
+        fail("FLAMESHOT_TRANSLATE_API_KEY is not set (put it in %s)" % ENV_FILE)
+    body = {"model": MODEL, "stream": False, "messages": [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": json.dumps(strings, ensure_ascii=False)}]}
+    if EFFORT:
+        body["reasoning_effort"] = EFFORT
+    req = urllib.request.Request(
+        API_BASE + "/chat/completions",
+        data=json.dumps(body, ensure_ascii=False).encode(),
+        headers={"Authorization": "Bearer " + API_KEY,
+                 "Content-Type": "application/json"})
     try:
-        out = subprocess.run(cmd, input=json.dumps(strings, ensure_ascii=False),
-                             capture_output=True, text=True, timeout=90,
-                             cwd=str(Path.home()))
-    except subprocess.TimeoutExpired:
-        fail("translation timed out")
-    if out.returncode != 0:
-        fail("claude failed: " + (out.stdout + out.stderr).strip()[:300])
-    text = out.stdout.strip()
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            data = json.load(resp)
+    except urllib.error.HTTPError as e:
+        fail("translation API HTTP %d: %s"
+             % (e.code, e.read().decode(errors="replace")[:300]))
+    except (urllib.error.URLError, TimeoutError) as e:
+        fail("translation API unreachable: %s" % getattr(e, "reason", e))
+    except ValueError:
+        fail("translation API returned non-JSON")
+    try:
+        text = data["choices"][0]["message"]["content"].strip()
+    except (KeyError, IndexError, TypeError, AttributeError):
+        fail("unexpected API response: " + json.dumps(data)[:300])
     m = re.search(r"\[.*\]", text, re.S)
     try:
         result = json.loads(m.group(0) if m else text)
@@ -156,7 +201,7 @@ def main():
     cache = load_cache()
     todo = sorted({it["src"] for it in items if it["src"] not in cache})
     if todo:
-        for src, en in zip(todo, claude_translate(todo)):
+        for src, en in zip(todo, api_translate(todo)):
             cache[src] = en
         save_cache(cache)
     for it in items:

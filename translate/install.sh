@@ -19,4 +19,10 @@ cat > "$HOME/.local/bin/flameshot-translate-helper" <<SH
 exec "$venv/bin/python" -I "$share/flameshot-translate-helper.py" "\$@"
 SH
 chmod +x "$HOME/.local/bin/flameshot-translate-helper"
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/flameshot-translate"
+if [ ! -e "$conf/.env" ]; then
+    mkdir -p "$conf"
+    install -m 600 "$here/env.example" "$conf/.env"
+    echo "created $conf/.env: set FLAMESHOT_TRANSLATE_API_KEY in it"
+fi
 echo "installed: $HOME/.local/bin/flameshot-translate-helper"

@@ -16,20 +16,37 @@ wheel, and undo the whole batch in one step. Copy and Save include it like any o
      below 0.5 are dropped.
    - samples each label's background (a ring around the box) and text colour (the pixels
      that differ most from it);
-   - **translates only the text strings, never the image**, in one batch through the
-     `claude` CLI (`claude -p --model haiku`) using the existing login. That took
-     ~3.5 s, and results are cached in `~/.cache/flameshot-translate/translations.json`,
+   - **translates only the text strings, never the image**, in one batch through an
+     OpenAI-compatible chat API: DeepSeek `deepseek-flash` (V4.1 Flash) at
+     `reasoning_effort=low` by default. That takes ~1 s (Claude Haiku via `claude -p`
+     took ~3.5 s). Results are cached in `~/.cache/flameshot-translate/translations.json`,
      so a label seen before costs nothing.
 3. Each result becomes a `TranslationLabelTool` object (`src/tools/translate/`).
 
 The engine is outside Flameshot on purpose: you can swap the OCR or the translator
-without rebuilding. Set `FLAMESHOT_TRANSLATE_HELPER` to use another helper, or
-`FLAMESHOT_TRANSLATE_MODEL` to use another Claude model.
+without rebuilding. Set `FLAMESHOT_TRANSLATE_HELPER` to use another helper.
+
+## Settings: `~/.config/flameshot-translate/.env`
+
+`install.sh` creates it from [`env.example`](env.example) (mode 600) if it is missing;
+it never overwrites an existing one. It lives outside the checkout, so the API key
+cannot be committed. A variable already set in the environment wins over the file.
+
+| Variable | Default |
+|---|---|
+| `FLAMESHOT_TRANSLATE_API_KEY` | *(required)* |
+| `FLAMESHOT_TRANSLATE_API_BASE` | `https://api.deepseek.com/v1` (any OpenAI-compatible endpoint) |
+| `FLAMESHOT_TRANSLATE_MODEL` | `deepseek-flash` (`deepseek-v4-pro` is the other option) |
+| `FLAMESHOT_TRANSLATE_EFFORT` | `low` (`high`, `max`; empty = don't send `reasoning_effort`) |
+| `FLAMESHOT_TRANSLATE_TIMEOUT` | `60` seconds |
+
+The helper reads the file on every run, so a change takes effect on the next Translate
+with no reinstall or daemon restart.
 
 ## Install (miku)
 
 ```bash
-translate/install.sh                          # venv + helper copy in ~/.local/share, launcher in ~/.local/bin
+translate/install.sh                          # venv + helper copy in ~/.local/share, launcher in ~/.local/bin, .env in ~/.config
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX=$HOME/.local/opt/flameshot-translate
 cmake --build build -j && cmake --install build
