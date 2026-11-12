@@ -878,8 +878,7 @@ void CaptureWidget::translate()
     }
     if (helper.isEmpty()) {
         helper = QStandardPaths::findExecutable(
-          "flameshot-translate-helper",
-          { QDir::homePath() + "/.local/bin" });
+          "flameshot-translate-helper", { QDir::homePath() + "/.local/bin" });
     }
     if (helper.isEmpty()) {
         AbstractLogger::error()
@@ -887,9 +886,8 @@ void CaptureWidget::translate()
         return;
     }
 
-    const QRect selection = m_selection->isVisible()
-                              ? m_selection->geometry()
-                              : rect();
+    const QRect selection =
+      m_selection->isVisible() ? m_selection->geometry() : rect();
     const qreal scale = m_context.origScreenshot.devicePixelRatio();
     const QRect pixels = extendedRect(selection);
 
